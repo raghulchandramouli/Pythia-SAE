@@ -1,0 +1,34 @@
+model:
+  id: EleutherAI/pythia-70m
+  pythia_step: step143000
+  architecture: gpt_neox
+
+activation:
+  layer: 4
+  d_in: 512
+
+  hf_hidden_states_index: 5
+
+  transformer_lens_hook: blocks.4.hook_resid_post
+
+  position: all_tokens
+
+sae:
+  d_sae: 4096
+  sparsity: l1
+  l1_coeff: 0.001
+
+training:
+  batch_size: 4096
+  train_steps: 50000
+  lr: 3.0e-4
+  seed: 0
+
+cache:
+  corpus: openwebtext
+  max_tokens_cache: 1000000
+  shard_size: 1000000
+  output_dir: data/activations/pythia70m_layer4
+
+outputs:
+  run_dir: runs/pythia70m_layer4
