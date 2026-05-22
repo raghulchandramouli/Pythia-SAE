@@ -12,7 +12,7 @@ def load_config(path: str) -> dict:
     
 def collect_texts(max_examples: int = 128) -> list[str]:
     
-    dataset = load_dataset("openwebtext", split="train", streaming=True)
+    dataset = load_dataset("Skylion007/openwebtext", split="train", streaming=True)
     
     texts = []
     for row in dataset:
@@ -35,7 +35,7 @@ def main() -> None:
     revision = config['model']['pythia_step']
     hidden_state_index = config['activation']['hf_hidden_states_index']
     max_tokens_cache = config['cache']['max_tokens_cache']
-    shard_size = config['cache']['shard_size']
+    shard_size_tokens = config['cache']['shard_size']
     output_dir = Path(config['cache']['output_dir'])
     
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -43,6 +43,7 @@ def main() -> None:
     device = "cuda" if torch.cuda.is_available() else "cpu"
     
     dtype = torch.float16 if device == "cuda" else torch.float32
+    tokenizer = AutoTokenizer.from_pretrained(model_id, revision=revision)
     model = AutoModelForCausalLM.from_pretrained(
         model_id,   
         revision=revision,
@@ -53,9 +54,10 @@ def main() -> None:
     
     texts = collect_texts()
     
-    cache_chunks  = []
+    cached_chunks = []
     cached_tokens = 0
-    shard_index   = 0
+    total_cached_tokens = 0
+    shard_index = 0
     
     with torch.no_grad():
         for text in texts:
@@ -66,7 +68,7 @@ def main() -> None:
                 max_length = 128,
             ).to(device)
             
-            outpus = model(**tokens)
+            outputs = model(**tokens)
             hidden = outputs.hidden_states[hidden_state_index]
             
             # shape: [batch, seq, d_in] -> tokens, d_in
@@ -74,6 +76,7 @@ def main() -> None:
             
             cached_chunks.append(activations)
             cached_tokens += activations.shape[0]
+            total_cached_tokens += activations.shape[0]
             
             if cached_tokens >= shard_size_tokens:
                 shard = torch.cat(cached_chunks, dim=0)
@@ -85,13 +88,13 @@ def main() -> None:
                 cached_chunks = []
                 cached_tokens = 0
                 shard_index += 1
-            if shard_index * shard_size_tokens >= max_tokens_cache:
+            if total_cached_tokens >= max_tokens_cache:
                 break
             
         if cached_chunks:
             shard = torch.cat(cached_chunks, dim=0)
             shard_path = output_dir / f"shard_{shard_index:04d}.pt"
-            torch.save({'activations' : shard}, shard_path})
+            torch.save({'activations' : shard}, shard_path)
             print(f"saved {shard_path} with shape {tuple(shard.shape)}")
 
 

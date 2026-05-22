@@ -18,7 +18,7 @@ class SparseAutoencoder(nn.Module):
     def decode(self, features: torch.Tensor) -> torch.Tensor:
         return self.decoder(features)
     
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         features = self.encode(x)
         reconstruction = self.decode(features)
         return reconstruction, features
@@ -38,7 +38,7 @@ def sae_loss(
         "loss"     : total_loss.detach(),
         "mse_loss" : mse_loss.detach(),
         "l1_loss"  : l1_loss.detach(),
-        "mean_10"  : (features > 0).float().sum(dim=-1).mean().detach(),
+        "mean_l0"  : (features > 0).float().sum(dim=-1).mean().detach(),
     }
     
     return total_loss, metrics
